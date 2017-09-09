@@ -15,7 +15,7 @@ end
 figNum = 1;
 figure(figNum);
 figNum = figNum + 1;
-img_color = imread('green05.bmp');
+img_color = imread('green10.bmp');
 imshow(img_color);
 title('color');
 
@@ -38,22 +38,22 @@ img_gray = rgb2gray(img_adjust);
 
 x = [135 1 1 1280 1280 1175];
 y = [1 337 720 720 300 1];
-[m,n] = size(img_gray);
-mask = uint8(poly2mask(x,y,m,n));
+[sz_y, sz_x] = size(img_gray);
+mask = uint8(poly2mask(x,y,sz_y,sz_x));
 img_gray = img_gray .* mask;
 
 figure(figNum);
 figNum = figNum + 1;
 
 imshow(img_gray);
-[sz_y, sz_x] = size(img_gray);
+
 title('gray');
 
 %% Obtain Edged Image
 figure(figNum);
 figNum = figNum + 1;
 % img_edged = edge(imgaussfilt(img_gray),'Prewitt');
-img_edged = edge(img_gray,'canny', 0.12);%, 0.08);
+img_edged = edge(img_gray,'canny', 0.109);%, 0.08);
 imshow(img_edged);
 title('edged');
 
@@ -177,6 +177,7 @@ end
 hold on
 for k = 1:length(B)
     img_box1 = insertText(img_box1, stats.Centroid(k,:), num2str(k));
+    img_zoomIn = img_edged;
     
     boundary = B{k};
     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
@@ -186,9 +187,10 @@ for k = 1:length(B)
 %    major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k)
     
     % Bounding Box
+    boundingBox = stats.BoundingBox(k,:);
     if (stats.FilledArea > fillAreaThrsh)
-       img_box1 = insertShape(img_box1,'Rectangle',...
-           stats.BoundingBox(k,:), 'LineWidth',5);
+       img_box1 = insertShape(img_box1,'Rectangle', ...
+           boundingBox, 'LineWidth',5);
     end
     
     % Cylinder Detection
@@ -206,7 +208,47 @@ for k = 1:length(B)
         end
     end
     
+    % Mask by Bounding Box
+    x = [boundingBox(1), boundingBox(1), ...
+        boundingBox(1) + boundingBox(3), boundingBox(1) + boundingBox(3)];
+    y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
+        boundingBox(2) + boundingBox(4), boundingBox(2),];
+    img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
+    imshow(img_zoomIn);
     
+    [H, T, R] = hough(img_zoomIn);
+
+    N = 50;
+    P  = houghpeaks(H,3,'threshold',ceil(0.04364*max(H(:))));
+
+    lines = houghlines(img_zoomIn,T,R,P,'FillGap',30,'MinLength',20);
+
+
+    figure(figNum);
+    figNum = figNum + 1;
+    % subplot(2, 1, 1);
+    imshow(img_zoomIn);
+    hold on;
+
+    max_len = 0;
+    for k = 1:length(lines)
+       xy = [lines(k).point1; lines(k).point2];
+       plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+
+       % Plot beginnings and ends of lines
+       plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+       plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+
+       % Determine the endpoints of the longest line segment
+       len = norm(lines(k).point1 - lines(k).point2);
+       if ( len > max_len)
+          max_len = len;
+          xy_long = xy;
+       end
+    end
+    
+    
+    k
 end
 
 txtCylinder = ['Total of ' num2str(numCylinder,'%d') ' cylinders found. '];
