@@ -63,28 +63,28 @@ imshow(img_edged1);
 title('edged1');
 
 %% Obtain Edged Image from original colorful image
-figure(figNum);
-figNum = figNum + 1;
 % img_edged = edge(imgaussfilt(img_gray),'Prewitt');
 img_edged2 = edge(rgb2gray(imgaussfilt(img_color)),'canny', 0.1);%, 0.08);
-imshow(img_edged2);
-title('edged2');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_edged2);
+% title('edged2');
 
 %% Obtain Edged Image from Shadow Removal
-figure(figNum);
-figNum = figNum + 1;
 img_noShadow = shadowRemoval(imgaussfilt(img_color), 20);
 img_edged3 = edge(img_noShadow,'canny', 0.2);%, 0.08);
-imshow(img_edged3);
-title('edged3');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_edged3);
+% title('edged3');
 
 %% Combine Edges
-figure(figNum);
-figNum = figNum + 1;
 se = strel('disk',1);
 img_edged2 = imdilate(img_edged2,se) .* boundaryMask;
 img_edged3 = imdilate(img_edged3,se) .* boundaryMask;
 img_edged = bitor(bitand(img_edged2, img_edged3), img_edged1);
+figure(figNum);
+figNum = figNum + 1;
 imshow(img_edged);
 title('edged4');
 
@@ -196,88 +196,133 @@ xMax = zeros([1 sz(1,1)]);
 img_box1 = img_color;
 
 stats = regionprops('table', img_bcleared,'Centroid', 'BoundingBox',...
-    'MajorAxisLength','MinorAxisLength', 'Area', 'FilledArea')
+    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema')
 
-[C, R] = imfindcircles(img_bcleared, [30, 50]);
-viscircles(C, R);
+[centers, radii] = imfindcircles(img_bcleared, [30, 50]);
+viscircles(centers, radii);
 
 for n = 0:size(C)-1
-    img_box1 = insertText(img_box1, C(n+1,:), char('a'+n));
+    img_box1 = insertText(img_box1, centers(n+1,:), char('a'+n));
 end
 
 hold on
 for k = 1:length(B)
+    identified = 0;
     img_box1 = insertText(img_box1, stats.Centroid(k,:), num2str(k));
     img_zoomIn = img_edged;
     
     boundary = B{k};
     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
 
-    fillAreaThrsh = 2000;
+    areaThrsh = 2000;
 
 %    major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k)
     
     % Bounding Box
     boundingBox = stats.BoundingBox(k,:);
-    if (stats.FilledArea > fillAreaThrsh)
+    extrema = stats.Extrema{k};
+    if (stats.Area > areaThrsh)
        img_box1 = insertShape(img_box1,'Rectangle', ...
            boundingBox, 'LineWidth',5);
     end
     
     % Cylinder Detection
     tolerance = 10;
-    for n = 1:size(C)
-        dx = abs(stats.Centroid(k,1) - C(n,1));
-        dy = abs(stats.Centroid(k,2) - C(n,2));
+    for n = 1:size(centers)
+        dx = abs(stats.Centroid(k,1) - centers(n,1));
+        dy = abs(stats.Centroid(k,2) - centers(n,2));
         centroid2circle = sqrt(dx^2 + dy^2);
-        if (centroid2circle < R(n) + tolerance)
+        if (centroid2circle < radii(n) + tolerance)
             numCylinder = numCylinder + 1;
             txt = strcat('Cylinder', sprintf('%02d',numCylinder));
             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
             img_box1 = insertText(img_box1, txtLoc, txt);
+            identified = 1;
             break;
         end
     end
     
-    % Mask by Bounding Box
-    x = [boundingBox(1), boundingBox(1), ...
-        boundingBox(1) + boundingBox(3), boundingBox(1) + boundingBox(3)];
-    y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
-        boundingBox(2) + boundingBox(4), boundingBox(2),];
-    img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
-%     imshow(img_zoomIn);
+    temp = round(stats.Extrema{k});
+    temp(:,1) = temp(:,1) - min(temp(:,1)) + 1;
+    temp(:,2) = temp(:,2) - min(temp(:,2)) + 1;
+    mask = zeros(max(temp(:,1)),max(temp(:,2)));
+    for cnt2 = 1:8
+        mask(temp(cnt2,1),temp(cnt2,2))=1;
+    end
+    se = strel('disk',6);
+    mask2 = imdilate(mask,se);
+    figure;
+    imagesc(mask2);
+    [labeled, corners] = bwlabel(mask2,8);
+    corners
+    if (corners < 6 && ~identified)
+        numTriPrism = numTriPrism + 1;
+        txt = strcat('Tri. Prism', sprintf('%02d',numTriPrism));
+        txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
+        img_box1 = insertText(img_box1, txtLoc, txt);
+        identified = 1;
+    end
+    
+%     % Mask by Bounding Box
+%     x = [boundingBox(1), boundingBox(1), ...
+%         boundingBox(1) + boundingBox(3), boundingBox(1) + boundingBox(3)];
+%     y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
+%         boundingBox(2) + boundingBox(4), boundingBox(2),];
+%     img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
 %     
 %     [H, T, R] = hough(img_zoomIn);
 % 
 %     N = 50;
-%     P  = houghpeaks(H,3,'threshold',ceil(0.04364*max(H(:))));
+%     P  = houghpeaks(H,9,'threshold',ceil(0.04364*max(H(:))));
 % 
 %     lines = houghlines(img_zoomIn,T,R,P,'FillGap',30,'MinLength',20);
 % 
 % 
 %     figure(figNum);
 %     figNum = figNum + 1;
-%     % subplot(2, 1, 1);
 %     imshow(img_zoomIn);
 %     hold on;
-% 
+%     
+%     lens = zeros(length(lines), 1);
 %     max_len = 0;
-%     for k = 1:length(lines)
-%        xy = [lines(k).point1; lines(k).point2];
-%        plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+%     for line = 1:length(lines)
+%         xy = [lines(line).point1; lines(line).point2];
+%         plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
 % 
-%        % Plot beginnings and ends of lines
-%        plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
-%        plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+%         % Plot beginnings and ends of lines
+%         plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+%         plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
 % 
-%        % Determine the endpoints of the longest line segment
-%        len = norm(lines(k).point1 - lines(k).point2);
-%        if ( len > max_len)
-%           max_len = len;
-%           xy_long = xy;
-%        end
+%         % Determine the endpoints of the longest line segment
+%         len = norm(lines(line).point1 - lines(line).point2);
+%         lens(line) = len;
+%         if ( len > max_len)
+%             lineNum = line;
+%             max_len = len;
+%             xy_long = xy;
+%         end
 %     end
-    
+%     hold off
+%     
+% %     for cnt = 1:max(max(H))
+% %         data(cnt) = sum(sum(H == cnt));
+% %     end
+% %     
+% %     [maxval,maxind] = max(data);
+% %     medval = median(data);
+% % 
+% %     [p]=polyfit(1:maxind-5,data(1:maxind-5),2);
+% %     
+% %     if maxval<3*medval
+% % %         set(handles.txtResult,'string','Triangle');
+% %         fprintf('tri');
+% %     elseif  p(3)>100
+% % %         set(handles.txtResult,'string','Square');
+% %         fprintf('sq');
+% %     else
+% % %         set(handles.txtResult,'string','Round'); 
+% %         fprintf('ro');
+% %     end
     
     k
 end
