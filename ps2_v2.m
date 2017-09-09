@@ -15,19 +15,24 @@ end
 figNum = 1;
 figure(figNum);
 figNum = figNum + 1;
-img_color = imread('green10.bmp');
+img_color = imread('wood07.bmp');
 imshow(img_color);
 title('color');
 
 %% Adjust 
 figure(figNum);
 figNum = figNum + 1;
-img_adjust = img_color;
+low = 0.2;
+high = 1 - low;
+gamma = 1 - 2 * low;
+in = [low low low; high high high];
+out = [low low low; high high high];
+gammas = [gamma gamma gamma];
+img_adjust = imadjust(img_color,in, out, gammas);
 for times = 1:1
     img_adjust = imgaussfilt(img_adjust);
 %     img_contrast = medfilt3(img_contrast);
 end
-%img_contrast = imadjust(img_color, [0.34151 1], [0 1]);
 % img_contrast = imsharpen(img_contrast);
 imshow(img_adjust);
 title('adjust');
@@ -39,8 +44,8 @@ img_gray = rgb2gray(img_adjust);
 x = [135 1 1 1280 1280 1175];
 y = [1 337 720 720 300 1];
 [sz_y, sz_x] = size(img_gray);
-mask = uint8(poly2mask(x,y,sz_y,sz_x));
-img_gray = img_gray .* mask;
+boundaryMask = poly2mask(x,y,sz_y,sz_x);
+img_gray = img_gray .* uint8(boundaryMask);
 
 figure(figNum);
 figNum = figNum + 1;
@@ -49,13 +54,39 @@ imshow(img_gray);
 
 title('gray');
 
-%% Obtain Edged Image
+%% Obtain Edged Image from adjusted gray scale image
 figure(figNum);
 figNum = figNum + 1;
 % img_edged = edge(imgaussfilt(img_gray),'Prewitt');
-img_edged = edge(img_gray,'canny', 0.109);%, 0.08);
+img_edged1 = edge(img_gray,'canny', 0.109);%, 0.08);
+imshow(img_edged1);
+title('edged1');
+
+%% Obtain Edged Image from original colorful image
+figure(figNum);
+figNum = figNum + 1;
+% img_edged = edge(imgaussfilt(img_gray),'Prewitt');
+img_edged2 = edge(rgb2gray(imgaussfilt(img_color)),'canny', 0.1);%, 0.08);
+imshow(img_edged2);
+title('edged2');
+
+%% Obtain Edged Image from Shadow Removal
+figure(figNum);
+figNum = figNum + 1;
+img_noShadow = shadowRemoval(imgaussfilt(img_color), 20);
+img_edged3 = edge(img_noShadow,'canny', 0.2);%, 0.08);
+imshow(img_edged3);
+title('edged3');
+
+%% Combine Edges
+figure(figNum);
+figNum = figNum + 1;
+se = strel('disk',1);
+img_edged2 = imdilate(img_edged2,se) .* boundaryMask;
+img_edged3 = imdilate(img_edged3,se) .* boundaryMask;
+img_edged = bitor(bitand(img_edged2, img_edged3), img_edged1);
 imshow(img_edged);
-title('edged');
+title('edged4');
 
 %% Dilate Edges
 % figure(4);
@@ -214,38 +245,38 @@ for k = 1:length(B)
     y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
         boundingBox(2) + boundingBox(4), boundingBox(2),];
     img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
-    imshow(img_zoomIn);
-    
-    [H, T, R] = hough(img_zoomIn);
-
-    N = 50;
-    P  = houghpeaks(H,3,'threshold',ceil(0.04364*max(H(:))));
-
-    lines = houghlines(img_zoomIn,T,R,P,'FillGap',30,'MinLength',20);
-
-
-    figure(figNum);
-    figNum = figNum + 1;
-    % subplot(2, 1, 1);
-    imshow(img_zoomIn);
-    hold on;
-
-    max_len = 0;
-    for k = 1:length(lines)
-       xy = [lines(k).point1; lines(k).point2];
-       plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
-
-       % Plot beginnings and ends of lines
-       plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
-       plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
-
-       % Determine the endpoints of the longest line segment
-       len = norm(lines(k).point1 - lines(k).point2);
-       if ( len > max_len)
-          max_len = len;
-          xy_long = xy;
-       end
-    end
+%     imshow(img_zoomIn);
+%     
+%     [H, T, R] = hough(img_zoomIn);
+% 
+%     N = 50;
+%     P  = houghpeaks(H,3,'threshold',ceil(0.04364*max(H(:))));
+% 
+%     lines = houghlines(img_zoomIn,T,R,P,'FillGap',30,'MinLength',20);
+% 
+% 
+%     figure(figNum);
+%     figNum = figNum + 1;
+%     % subplot(2, 1, 1);
+%     imshow(img_zoomIn);
+%     hold on;
+% 
+%     max_len = 0;
+%     for k = 1:length(lines)
+%        xy = [lines(k).point1; lines(k).point2];
+%        plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+% 
+%        % Plot beginnings and ends of lines
+%        plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+%        plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+% 
+%        % Determine the endpoints of the longest line segment
+%        len = norm(lines(k).point1 - lines(k).point2);
+%        if ( len > max_len)
+%           max_len = len;
+%           xy_long = xy;
+%        end
+%     end
     
     
     k
