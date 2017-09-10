@@ -54,13 +54,23 @@ imshow(img_gray);
 
 title('gray');
 
+%%
+img_single = im2single(img_color);
+rgb_normalised = img_single./repmat(max(sum(img_single, 3), 0.001), [1 1 3]);
+% img_gray2 = imadjust(rgb2gray(rgb_normalised));
+img_edged0 = edge(imadjust(rgb2gray(rgb_normalised)),'canny', 0.25703);
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_edged0);
+% title('edged0');
+
 %% Obtain Edged Image from adjusted gray scale image
-figure(figNum);
-figNum = figNum + 1;
 % img_edged = edge(imgaussfilt(img_gray),'Prewitt');
 img_edged1 = edge(img_gray,'canny', 0.109);%, 0.08);
-imshow(img_edged1);
-title('edged1');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_edged1);
+% title('edged1');
 
 %% Obtain Edged Image from original colorful image
 % img_edged = edge(imgaussfilt(img_gray),'Prewitt');
@@ -71,8 +81,9 @@ img_edged2 = edge(rgb2gray(imgaussfilt(img_color)),'canny', 0.1);%, 0.08);
 % title('edged2');
 
 %% Obtain Edged Image from Shadow Removal
-img_noShadow = shadowRemoval(imgaussfilt(img_color), 20);
-img_edged3 = edge(img_noShadow,'canny', 0.2);%, 0.08);
+% img_noShadow = shadowRemoval(imgaussfilt(img_color), 15);
+img_noShadow = shadowRemoval(img_color, 15);
+img_edged3 = edge(img_noShadow,'canny', 0.109);%, 0.08);
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_edged3);
@@ -80,23 +91,26 @@ img_edged3 = edge(img_noShadow,'canny', 0.2);%, 0.08);
 
 %% Combine Edges
 se = strel('disk',1);
+% img_edged0 = imdilate(img_edged0,se) .* boundaryMask;
+img_edged1 = imdilate(img_edged1,se) .* boundaryMask;
 img_edged2 = imdilate(img_edged2,se) .* boundaryMask;
 img_edged3 = imdilate(img_edged3,se) .* boundaryMask;
-img_edged = bitor(bitand(img_edged2, img_edged3), img_edged1);
+img_edged = bitor(bitand(bitand(img_edged2, img_edged3), img_edged1), ...
+    img_edged0);
 figure(figNum);
 figNum = figNum + 1;
 imshow(img_edged);
-title('edged4');
+title('edgedSum');
 
 %% Dilate Edges
 % figure(4);
-se = strel('disk',5);
+se = strel('disk',3);
 img_dilated = imdilate(img_edged,se);
 % imshow(img_dilated);
 
-se = [strel('line',3,0), strel('line',3,45), strel('line',3,90), ...
-    strel('line',3,135)];
-img_dilated_line = imdilate(img_edged,se);
+% se = [strel('line',3,0), strel('line',3,45), strel('line',3,90), ...
+%     strel('line',3,135)];
+% img_dilated_line = imdilate(img_edged,se);
 % imshow(img_dilated_line);
 
 %% Fill Holes
@@ -201,7 +215,7 @@ stats = regionprops('table', img_bcleared,'Centroid', 'BoundingBox',...
 [centers, radii] = imfindcircles(img_bcleared, [30, 50]);
 viscircles(centers, radii);
 
-for n = 0:size(C)-1
+for n = 0:size(centers)-1
     img_box1 = insertText(img_box1, centers(n+1,:), char('a'+n));
 end
 
@@ -216,14 +230,16 @@ for k = 1:length(B)
 
     areaThrsh = 2000;
 
-%    major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k)
+    major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k);
     
     % Bounding Box
     boundingBox = stats.BoundingBox(k,:);
     extrema = stats.Extrema{k};
     if (stats.Area > areaThrsh)
-       img_box1 = insertShape(img_box1,'Rectangle', ...
-           boundingBox, 'LineWidth',5);
+        if (major2minor < 2)
+            img_box1 = insertShape(img_box1,'Rectangle', ...
+                boundingBox, 'LineWidth',5);
+        end
     end
     
     % Cylinder Detection
@@ -251,8 +267,9 @@ for k = 1:length(B)
     end
     se = strel('disk',6);
     mask2 = imdilate(mask,se);
-    figure;
-    imagesc(mask2);
+%     figure(figNum);
+%     figNum = figNum + 1;
+%     imagesc(mask2);
     [labeled, corners] = bwlabel(mask2,8);
     corners
     if (corners < 6 && ~identified)
