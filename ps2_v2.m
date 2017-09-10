@@ -226,7 +226,7 @@ for k = 1:height(stats)
     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
 
     areaThrsh = 2750;
-    triArea = 13000;
+    triArea = 12800;
     major2minorThrsh = 1.8;
 
     major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k);
