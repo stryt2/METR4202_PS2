@@ -5,6 +5,7 @@ close all;
 numCylinder = 0;
 numCube = 0;
 numTriPrism = 0;
+figNum = 1;
 
 %% Calibrate Camera
 if ~exist('cameraParams')
@@ -12,16 +13,13 @@ if ~exist('cameraParams')
 end
 
 %% Read Colourful Image
-figNum = 1;
-figure(figNum);
-figNum = figNum + 1;
 img_color = imread('wood07.bmp');
-imshow(img_color);
-title('color');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_color);
+% title('color');
 
 %% Adjust 
-figure(figNum);
-figNum = figNum + 1;
 low = 0.2;
 high = 1 - low;
 gamma = 1 - 2 * low;
@@ -34,8 +32,10 @@ for times = 1:1
 %     img_contrast = medfilt3(img_contrast);
 end
 % img_contrast = imsharpen(img_contrast);
-imshow(img_adjust);
-title('adjust');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_adjust);
+% title('adjust');
 
 
 %% Turn to gray scale
@@ -47,12 +47,10 @@ y = [1 337 720 720 300 1];
 boundaryMask = poly2mask(x,y,sz_y,sz_x);
 img_gray = img_gray .* uint8(boundaryMask);
 
-figure(figNum);
-figNum = figNum + 1;
-
-imshow(img_gray);
-
-title('gray');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_gray);
+% title('gray');
 
 %%
 img_single = im2single(img_color);
@@ -121,13 +119,12 @@ img_filled = bwareaopen(img_filled,1000);
 % imshow(img_filled);
 
 %% Clear Boarders
-figure(figNum);
-figNum = figNum + 1;
 img_bcleared = imclearborder(img_filled);
-img_bcleared_line = imclearborder(img_dilated_line);
-
-imshow(img_bcleared);
-title('dilated, filled, bcleared');
+% img_bcleared_line = imclearborder(img_dilated_line);
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_bcleared);
+% title('dilated, filled, bcleared');
 
 %% 
 % figure(7);
@@ -136,38 +133,38 @@ title('dilated, filled, bcleared');
 
 %% Obtain Hough Transform
 %close all
-[H, T, R] = hough(img_edged);
+% [H, T, R] = hough(img_edged);
+% 
+% N = 50;
+% P  = houghpeaks(H,15,'threshold',ceil(0.04364*max(H(:))));
+% 
+% lines = houghlines(img_edged,T,R,P,'FillGap',30,'MinLength',20);
 
-N = 50;
-P  = houghpeaks(H,15,'threshold',ceil(0.04364*max(H(:))));
 
-lines = houghlines(img_edged,T,R,P,'FillGap',30,'MinLength',20);
+% figure(figNum);
+% figNum = figNum + 1;
+% % subplot(2, 1, 1);
+% imshow(img_edged);
+% hold on;
 
+% max_len = 0;
+% for k = 1:length(lines)
+%    xy = [lines(k).point1; lines(k).point2];
+%    plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+% 
+%    % Plot beginnings and ends of lines
+%    plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+%    plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+% 
+%    % Determine the endpoints of the longest line segment
+%    len = norm(lines(k).point1 - lines(k).point2);
+%    if ( len > max_len)
+%       max_len = len;
+%       xy_long = xy;
+%    end
+% end
 
-figure(figNum);
-figNum = figNum + 1;
-% subplot(2, 1, 1);
-imshow(img_edged);
-hold on;
-
-max_len = 0;
-for k = 1:length(lines)
-   xy = [lines(k).point1; lines(k).point2];
-   plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
-
-   % Plot beginnings and ends of lines
-   plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
-   plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
-
-   % Determine the endpoints of the longest line segment
-   len = norm(lines(k).point1 - lines(k).point2);
-   if ( len > max_len)
-      max_len = len;
-      xy_long = xy;
-   end
-end
-
-title('Hough');
+% title('Hough');
 
 % subplot(2, 1, 2);
 % imshow(imadjust(mat2gray(H)), 'XData', T, 'YData', R, ...
@@ -198,48 +195,51 @@ J = imwarp(img_gray, projective2d(inv(H)));
 
 
 %% Trace region boundaries in binary image and Put Box Around Shapes
+img_propfilt = bwareaopen(img_bcleared, 2750);
 
-figure(figNum);
-figNum = figNum + 1;
-% img_propfilt = bwareaopen(img_dilated, 1000);
-[B,L] = bwboundaries(img_bcleared, 'noholes');
-imshow(label2rgb(L, @jet, [.5 .5 .5]))
-
-sz = size(B);
-xMax = zeros([1 sz(1,1)]);
+% sz = size(B);
+% xMax = zeros([1 sz(1,1)]);
 img_box1 = img_color;
 
-stats = regionprops('table', img_bcleared,'Centroid', 'BoundingBox',...
+stats = regionprops('table', img_propfilt,'Centroid', 'BoundingBox',...
     'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema')
 
-[centers, radii] = imfindcircles(img_bcleared, [30, 50]);
-viscircles(centers, radii);
+[centers, radii] = imfindcircles(img_propfilt, [30, 50]);
 
-for n = 0:size(centers)-1
-    img_box1 = insertText(img_box1, centers(n+1,:), char('a'+n));
-end
+% viscircles(centers, radii);
+
+% for n = 0:size(centers)-1
+%     img_box1 = insertText(img_box1, centers(n+1,:), char('a'+n));
+% end
+
+[B,L] = bwboundaries(img_propfilt, 'noholes');
+figure(figNum);
+figNum = figNum + 1;
+imshow(label2rgb(L, @jet, [.5 .5 .5]))
 
 hold on
-for k = 1:length(B)
+for k = 1:height(stats)
     identified = 0;
-    img_box1 = insertText(img_box1, stats.Centroid(k,:), num2str(k));
     img_zoomIn = img_edged;
     
     boundary = B{k};
     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
 
-    areaThrsh = 2000;
+    areaThrsh = 2750;
+    triArea = 13000;
+    major2minorThrsh = 1.8;
 
     major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k);
     
     % Bounding Box
     boundingBox = stats.BoundingBox(k,:);
     extrema = stats.Extrema{k};
-    if (stats.Area > areaThrsh)
-        if (major2minor < 2)
-            img_box1 = insertShape(img_box1,'Rectangle', ...
-                boundingBox, 'LineWidth',5);
-        end
+    if (stats.Area(k) > areaThrsh && major2minor < major2minorThrsh)
+        img_box1 = insertShape(img_box1,'Rectangle', ...
+            boundingBox, 'LineWidth',5);
+        img_box1 = insertText(img_box1, stats.Centroid(k,:), num2str(k));
+    else
+        continue;
     end
     
     % Cylinder Detection
@@ -251,34 +251,56 @@ for k = 1:length(B)
         if (centroid2circle < radii(n) + tolerance)
             numCylinder = numCylinder + 1;
             txt = strcat('Cylinder', sprintf('%02d',numCylinder));
-            txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
-            img_box1 = insertText(img_box1, txtLoc, txt);
+%             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
+%             img_box1 = insertText(img_box1, txtLoc, txt);
             identified = 1;
             break;
         end
     end
     
-    temp = round(stats.Extrema{k});
-    temp(:,1) = temp(:,1) - min(temp(:,1)) + 1;
-    temp(:,2) = temp(:,2) - min(temp(:,2)) + 1;
-    mask = zeros(max(temp(:,1)),max(temp(:,2)));
-    for cnt2 = 1:8
-        mask(temp(cnt2,1),temp(cnt2,2))=1;
+    % Detection based on area
+    if (~identified)
+        if (stats.Area(k) > triArea)
+            numTriPrism = numTriPrism + 1;
+            txt = strcat('Tri. Prism', sprintf('%02d',numTriPrism));
+%             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
+%             img_box1 = insertText(img_box1, txtLoc, txt);
+            identified = 1;
+        else
+            numCube = numCube + 1;
+            txt = strcat('Cube', sprintf('%02d',numCube));
+            identified = 1;
+        end
     end
-    se = strel('disk',6);
-    mask2 = imdilate(mask,se);
-%     figure(figNum);
-%     figNum = figNum + 1;
-%     imagesc(mask2);
-    [labeled, corners] = bwlabel(mask2,8);
-    corners
-    if (corners < 6 && ~identified)
-        numTriPrism = numTriPrism + 1;
-        txt = strcat('Tri. Prism', sprintf('%02d',numTriPrism));
+    
+    if (identified)
         txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
         img_box1 = insertText(img_box1, txtLoc, txt);
-        identified = 1;
     end
+    
+%     % Corners Detection
+%     temp = round(stats.Extrema{k});
+%     temp(:,1) = temp(:,1) - min(temp(:,1)) + 1;
+%     temp(:,2) = temp(:,2) - min(temp(:,2)) + 1;
+%     mask = zeros(max(temp(:,1)),max(temp(:,2)));
+%     for cnt2 = 1:8
+%         mask(temp(cnt2,1),temp(cnt2,2))=1;
+%     end
+%     se = strel('disk',6);
+%     mask2 = imdilate(mask,se);
+% %     figure(figNum);
+% %     figNum = figNum + 1;
+% %     imagesc(mask2);
+%     [labeled, corners] = bwlabel(mask2,8);
+% %     corners
+%     if (corners < 6 && ~identified)
+%         numTriPrism = numTriPrism + 1;
+%         txt = strcat('Tri. Prism', sprintf('%02d',numTriPrism));
+%         txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
+%         img_box1 = insertText(img_box1, txtLoc, txt);
+%         identified = 1;
+%     end
+    
     
 %     % Mask by Bounding Box
 %     x = [boundingBox(1), boundingBox(1), ...
@@ -286,6 +308,14 @@ for k = 1:length(B)
 %     y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
 %         boundingBox(2) + boundingBox(4), boundingBox(2),];
 %     img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
+%     img_zoomIn = imresize(img_zoomIn, 3);
+%     [domino_c, domino_r] = imfindcircles(img_zoomIn, [20, 30], ...
+%         'Sensitivity', 0.1);
+%     figure(figNum);
+%     figNum = figNum + 1;
+%     imshow(img_zoomIn);
+%     viscircles(domino_c, domino_r);
+%     title('zoomed');
 %     
 %     [H, T, R] = hough(img_zoomIn);
 % 
@@ -341,7 +371,7 @@ for k = 1:length(B)
 % %         fprintf('ro');
 % %     end
     
-    k
+%     k
 end
 
 txtCylinder = ['Total of ' num2str(numCylinder,'%d') ' cylinders found. '];
@@ -357,4 +387,5 @@ img_box1 = insertText(img_box1, txtLoc3, txtTriPrism);
 figure(figNum);
 figNum = figNum + 1;
 imshow(img_box1);
-% viscircles(C, R);
+% viscircles(centers, radii);
+viscircles(domino_c, domino_r);
