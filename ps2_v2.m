@@ -13,7 +13,7 @@ if ~exist('cameraParams')
 end
 
 %% Read Colourful Image
-img_color = imread('wood07.bmp');
+img_color = imread('green01.bmp');
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_color);
@@ -51,6 +51,21 @@ img_gray = img_gray .* uint8(boundaryMask);
 % figNum = figNum + 1;
 % imshow(img_gray);
 % title('gray');
+
+%% Top Down Transform
+if (~exist('fixedPoints') || ~exist('movingPoints'))
+    load('cpPoints');
+end
+
+tform = cp2tform(movingPoints, fixedPoints, 'projective');
+    
+img_transform = imtransform(img_gray, tform, 'XYScale', 0.15);
+
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_transform);
+% title('transform');
+
 
 %%
 img_single = im2single(img_color);
@@ -95,10 +110,10 @@ img_edged2 = imdilate(img_edged2,se) .* boundaryMask;
 img_edged3 = imdilate(img_edged3,se) .* boundaryMask;
 img_edged = bitor(bitand(bitand(img_edged2, img_edged3), img_edged1), ...
     img_edged0);
-figure(figNum);
-figNum = figNum + 1;
-imshow(img_edged);
-title('edgedSum');
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_edged);
+% title('edgedSum');
 
 %% Dilate Edges
 % figure(4);
@@ -180,17 +195,17 @@ img_bcleared = imclearborder(img_filled);
 
 % figure(figNum);
 % figNum = figNum + 1;
-KK = [
-    981.7016    0           637.7308;
-    0           980.4344    380.2695;
-    0           0           1
-    ];
-
-R = cameraParams.RotationMatrices(:,:,1);
-t = cameraParams.TranslationVectors(1,:);
-R(3,:) = t;
-H = R * cameraParams.IntrinsicMatrix;
-J = imwarp(img_gray, projective2d(inv(H)));
+% KK = [
+%     981.7016    0           637.7308;
+%     0           980.4344    380.2695;
+%     0           0           1
+%     ];
+% 
+% R = cameraParams.RotationMatrices(:,:,1);
+% t = cameraParams.TranslationVectors(1,:);
+% R(3,:) = t;
+% H = R * cameraParams.IntrinsicMatrix;
+% J = imwarp(img_gray, projective2d(inv(H)));
 % imshow(J);
 
 
@@ -202,7 +217,7 @@ img_propfilt = bwareaopen(img_bcleared, 2750);
 img_box1 = img_color;
 
 stats = regionprops('table', img_propfilt,'Centroid', 'BoundingBox',...
-    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema')
+    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema');
 
 [centers, radii] = imfindcircles(img_propfilt, [30, 50]);
 
@@ -213,21 +228,21 @@ stats = regionprops('table', img_propfilt,'Centroid', 'BoundingBox',...
 % end
 
 [B,L] = bwboundaries(img_propfilt, 'noholes');
-figure(figNum);
-figNum = figNum + 1;
-imshow(label2rgb(L, @jet, [.5 .5 .5]))
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(label2rgb(L, @jet, [.5 .5 .5]));
 
-hold on
+% hold on
 for k = 1:height(stats)
     identified = 0;
     img_zoomIn = img_edged;
     
-    boundary = B{k};
-    plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2)
+%     boundary = B{k};
+%     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2);
 
     areaThrsh = 2750;
-    triArea = 12800;
-    major2minorThrsh = 1.8;
+    triArea = 10000;
+    major2minorThrsh = 2.1;
 
     major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k);
     
@@ -388,4 +403,4 @@ figure(figNum);
 figNum = figNum + 1;
 imshow(img_box1);
 % viscircles(centers, radii);
-viscircles(domino_c, domino_r);
+% viscircles(domino_c, domino_r);
