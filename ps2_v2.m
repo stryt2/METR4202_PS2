@@ -1,6 +1,7 @@
+function img = ps2_v2(filename)
 %% Initilisation
 %clear all;
-close all;
+% close all;
 
 numCylinder = 0;
 numCube = 0;
@@ -8,12 +9,17 @@ numTriPrism = 0;
 figNum = 1;
 
 %% Calibrate Camera
-if ~exist('cameraParams')
+wkspace = evalin('base','whos'); 
+
+if ~ismember('cameraParams',[wkspace(:).name])
+    fprintf('CameraParams Calibrating...\n');
     cameraParams = calibrateScript();
+    assignin('base', 'cameraParams', cameraParams);
 end
 
 %% Read Colourful Image
-img_color = imread('green01.bmp');
+img_color = imread(filename);
+% img_color = imread('wood05.bmp');
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_color);
@@ -52,7 +58,7 @@ img_gray = img_gray .* uint8(boundaryMask);
 % imshow(img_gray);
 % title('gray');
 
-%% Top Down Transform
+%% Obtain Top Down Transform
 if (~exist('fixedPoints') || ~exist('movingPoints'))
     load('cpPoints');
 end
@@ -69,7 +75,7 @@ img_transform = imtransform(img_gray, tform, 'XYScale', 0.15);
 
 %%
 img_single = im2single(img_color);
-rgb_normalised = img_single./repmat(max(sum(img_single, 3), 0.001), [1 1 3]);
+rgb_normalised = img_single./repmat(max(sum(img_single, 3), 0.005), [1 1 3]);
 % img_gray2 = imadjust(rgb2gray(rgb_normalised));
 img_edged0 = edge(imadjust(rgb2gray(rgb_normalised)),'canny', 0.25703);
 % figure(figNum);
@@ -79,7 +85,7 @@ img_edged0 = edge(imadjust(rgb2gray(rgb_normalised)),'canny', 0.25703);
 
 %% Obtain Edged Image from adjusted gray scale image
 % img_edged = edge(imgaussfilt(img_gray),'Prewitt');
-img_edged1 = edge(img_gray,'canny', 0.109);%, 0.08);
+img_edged1 = edge(img_gray,'canny', 0.06183);%, 0.08);
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_edged1);
@@ -103,11 +109,13 @@ img_edged3 = edge(img_noShadow,'canny', 0.109);%, 0.08);
 % title('edged3');
 
 %% Combine Edges
-se = strel('disk',1);
-% img_edged0 = imdilate(img_edged0,se) .* boundaryMask;
+se = strel('disk',3);
+img_edged0 = img_edged0 .* boundaryMask;
 img_edged1 = imdilate(img_edged1,se) .* boundaryMask;
 img_edged2 = imdilate(img_edged2,se) .* boundaryMask;
 img_edged3 = imdilate(img_edged3,se) .* boundaryMask;
+% img_edged = bitor(bitand(bitand(img_edged2, img_edged3), img_edged1), ...
+%     img_edged0);
 img_edged = bitor(bitand(bitand(img_edged2, img_edged3), img_edged1), ...
     img_edged0);
 % figure(figNum);
@@ -117,8 +125,13 @@ img_edged = bitor(bitand(bitand(img_edged2, img_edged3), img_edged1), ...
 
 %% Dilate Edges
 % figure(4);
-se = strel('disk',3);
-img_dilated = imdilate(img_edged,se);
+% dilWidth = 12;
+dilWidth = [8 12];
+se = strel('disk',dilWidth(1));
+img_dilated1 = imdilate(img_edged,se);
+
+se = strel('disk',dilWidth(2));
+img_dilated2 = imdilate(img_edged,se);
 % imshow(img_dilated);
 
 % se = [strel('line',3,0), strel('line',3,45), strel('line',3,90), ...
@@ -129,16 +142,19 @@ img_dilated = imdilate(img_edged,se);
 %% Fill Holes
 % figure(figNum);
 % figNum = figNum + 1;
-img_filled = imfill(img_dilated, 'holes');
-img_filled = bwareaopen(img_filled,1000);
+img_filled1 = imfill(img_dilated1, 'holes');
+img_filled2 = imfill(img_dilated2, 'holes');
+img_filled1 = bwareaopen(img_filled1,2750);
+img_filled2 = bwareaopen(img_filled2,2750);
 % imshow(img_filled);
 
 %% Clear Boarders
-img_bcleared = imclearborder(img_filled);
+img_bcleared1 = imclearborder(img_filled1);
+img_bcleared2 = imclearborder(img_filled2);
 % img_bcleared_line = imclearborder(img_dilated_line);
 % figure(figNum);
 % figNum = figNum + 1;
-% imshow(img_bcleared);
+% imshow(img_bcleared1);
 % title('dilated, filled, bcleared');
 
 %% 
@@ -210,16 +226,22 @@ img_bcleared = imclearborder(img_filled);
 
 
 %% Trace region boundaries in binary image and Put Box Around Shapes
-img_propfilt = bwareaopen(img_bcleared, 2750);
+img_propfilt1 = img_bcleared1;
+img_propfilt2 = img_bcleared2;
 
-% sz = size(B);
-% xMax = zeros([1 sz(1,1)]);
 img_box1 = img_color;
 
-stats = regionprops('table', img_propfilt,'Centroid', 'BoundingBox',...
+stats1 = regionprops('table', img_propfilt1,'Centroid', 'BoundingBox',...
+    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema');
+stats2 = regionprops('table', img_propfilt2,'Centroid', 'BoundingBox',...
     'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema');
 
-[centers, radii] = imfindcircles(img_propfilt, [30, 50]);
+[centers1, radii1] = imfindcircles(img_propfilt1, [30, 50]);
+[centers2, radii2] = imfindcircles(img_propfilt2, [30, 50], ...
+    'ObjectPolarity', 'dark', 'EdgeThreshold', 0.15);
+% [centers, radii] = imfindcircles(img_propfilt, [30, 50]);
+centers = vertcat(centers1, centers2);
+radii = vertcat(radii1, radii2);
 
 % viscircles(centers, radii);
 
@@ -227,32 +249,36 @@ stats = regionprops('table', img_propfilt,'Centroid', 'BoundingBox',...
 %     img_box1 = insertText(img_box1, centers(n+1,:), char('a'+n));
 % end
 
-[B,L] = bwboundaries(img_propfilt, 'noholes');
+[B,L] = bwboundaries(img_propfilt2, 'noholes');
+sz = size(B);
+xMax = zeros([1 sz(1,1)]);
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(label2rgb(L, @jet, [.5 .5 .5]));
-
+% 
 % hold on
-for k = 1:height(stats)
+for k = 1:height(stats1)
     identified = 0;
     img_zoomIn = img_edged;
     
-%     boundary = B{k};
+    boundary = B{k};
 %     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2);
 
-    areaThrsh = 2750;
-    triArea = 10000;
+    areaThrsh = [2750 3000];
+    triArea = [12000 17500];
     major2minorThrsh = 2.1;
 
-    major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k);
+    major2minor = stats1.MajorAxisLength(k) / stats1.MinorAxisLength(k);
+%     major2minor(2) = stats2.MajorAxisLength(k) / stats2.MinorAxisLength(k);
     
     % Bounding Box
-    boundingBox = stats.BoundingBox(k,:);
-    extrema = stats.Extrema{k};
-    if (stats.Area(k) > areaThrsh && major2minor < major2minorThrsh)
+    boundingBox(1:2) = stats1.BoundingBox(k,1:2) + dilWidth(1) / 2;
+    boundingBox(3:4) = stats1.BoundingBox(k,3:4) - dilWidth(1);
+    extrema = stats1.Extrema{k};
+    if (stats2.Area(k) > areaThrsh(2) && major2minor < major2minorThrsh)
         img_box1 = insertShape(img_box1,'Rectangle', ...
             boundingBox, 'LineWidth',5);
-        img_box1 = insertText(img_box1, stats.Centroid(k,:), num2str(k));
+        img_box1 = insertText(img_box1, stats1.Centroid(k,:), num2str(k));
     else
         continue;
     end
@@ -260,10 +286,14 @@ for k = 1:height(stats)
     % Cylinder Detection
     tolerance = 10;
     for n = 1:size(centers)
-        dx = abs(stats.Centroid(k,1) - centers(n,1));
-        dy = abs(stats.Centroid(k,2) - centers(n,2));
+        dx = abs(stats1.Centroid(k,1) - centers(n,1));
+        dy = abs(stats1.Centroid(k,2) - centers(n,2));
         centroid2circle = sqrt(dx^2 + dy^2);
-        if (centroid2circle < radii(n) + tolerance)
+        if (centroid2circle < radii(n) + tolerance || ...
+                (centers(n,1) > boundingBox(1) && ...
+                centers(n,1) < boundingBox(1) + boundingBox(3)) && ...
+                centers(n,2) > boundingBox(2) && ...
+                centers(n,2) < boundingBox(2) + boundingBox(4))
             numCylinder = numCylinder + 1;
             txt = strcat('Cylinder', sprintf('%02d',numCylinder));
 %             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
@@ -275,7 +305,7 @@ for k = 1:height(stats)
     
     % Detection based on area
     if (~identified)
-        if (stats.Area(k) > triArea)
+        if (stats2.Area(k) > triArea(2))
             numTriPrism = numTriPrism + 1;
             txt = strcat('Tri. Prism', sprintf('%02d',numTriPrism));
 %             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
@@ -289,7 +319,7 @@ for k = 1:height(stats)
     end
     
     if (identified)
-        txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
+        txtLoc = [stats1.Centroid(k,1) - 32, stats1.Centroid(k,2) - 12];
         img_box1 = insertText(img_box1, txtLoc, txt);
     end
     
@@ -392,15 +422,18 @@ end
 txtCylinder = ['Total of ' num2str(numCylinder,'%d') ' cylinders found. '];
 txtCube = ['Total of ' num2str(numCube,'%d') ' cubes found. '];
 txtTriPrism = ['Total of ' num2str(numTriPrism,'%d') ' triangular prism found. '];
-txtLoc1 = [100, sz_y - 30];
-txtLoc2 = [100, sz_y - 60];
-txtLoc3 = [100, sz_y - 90];
+txtLoc1 = [20, sz_y - 30];
+txtLoc2 = [20, sz_y - 60];
+txtLoc3 = [20, sz_y - 90];
 img_box1 = insertText(img_box1, txtLoc1, txtCylinder);
 img_box1 = insertText(img_box1, txtLoc2, txtCube);
 img_box1 = insertText(img_box1, txtLoc3, txtTriPrism);
 
-figure(figNum);
-figNum = figNum + 1;
-imshow(img_box1);
+% figure(figNum);
+% figNum = figNum + 1;
+% imshow(img_box1);
+img = img_box1;
 % viscircles(centers, radii);
+% viscircles(centers2, radii2);
 % viscircles(domino_c, domino_r);
+end
