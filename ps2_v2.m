@@ -19,7 +19,7 @@ end
 
 %% Read Colourful Image
 img_color = imread(filename);
-% img_color = imread('wood05.bmp');
+% img_color = imread('wood10.bmp');
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_color);
@@ -257,16 +257,18 @@ xMax = zeros([1 sz(1,1)]);
 % imshow(label2rgb(L, @jet, [.5 .5 .5]));
 % 
 % hold on
+
+areaThrsh = [2750 3000];
+    triArea = [12000 14600];
+    major2minorThrsh = 2.1;
+    major2minorCube = 1.3;
+
 for k = 1:height(stats1)
     identified = 0;
     img_zoomIn = img_edged;
     
     boundary = B{k};
 %     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2);
-
-    areaThrsh = [2750 3000];
-    triArea = [12000 17500];
-    major2minorThrsh = 2.1;
 
     major2minor = stats1.MajorAxisLength(k) / stats1.MinorAxisLength(k);
 %     major2minor(2) = stats2.MajorAxisLength(k) / stats2.MinorAxisLength(k);
@@ -285,7 +287,7 @@ for k = 1:height(stats1)
     
     % Cylinder Detection
     tolerance = 10;
-    for n = 1:size(centers)
+    for n = 1:size(centers,1)
         dx = abs(stats1.Centroid(k,1) - centers(n,1));
         dy = abs(stats1.Centroid(k,2) - centers(n,2));
         centroid2circle = sqrt(dx^2 + dy^2);
@@ -311,10 +313,26 @@ for k = 1:height(stats1)
 %             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
 %             img_box1 = insertText(img_box1, txtLoc, txt);
             identified = 1;
-        else
+        elseif (major2minor < major2minorCube)
             numCube = numCube + 1;
             txt = strcat('Cube', sprintf('%02d',numCube));
             identified = 1;
+        end
+    end
+    
+    if (~identified) 
+        [centers3, radii3] = imfindcircles(img_propfilt1, [30, 50], ...
+            'EdgeThreshold', 0.25);
+        for n = 1:size(centers3,1)
+            dx = abs(stats1.Centroid(k,1) - centers3(n,1));
+            dy = abs(stats1.Centroid(k,2) - centers3(n,2));
+            centroid2circle = sqrt(dx^2 + dy^2);
+            if (centroid2circle < radii3(n) + tolerance + 5)
+                numCylinder = numCylinder + 1;
+                txt = strcat('Cylinder', sprintf('%02d',numCylinder));
+                identified = 1;
+                break;
+            end
         end
     end
     
@@ -419,9 +437,9 @@ for k = 1:height(stats1)
 %     k
 end
 
-txtCylinder = ['Total of ' num2str(numCylinder,'%d') ' cylinders found. '];
-txtCube = ['Total of ' num2str(numCube,'%d') ' cubes found. '];
-txtTriPrism = ['Total of ' num2str(numTriPrism,'%d') ' triangular prism found. '];
+txtCylinder = ['Total of ' num2str(numCylinder,'%d') ' cylinder(s) found. '];
+txtCube = ['Total of ' num2str(numCube,'%d') ' cube(s) found. '];
+txtTriPrism = ['Total of ' num2str(numTriPrism,'%d') ' triangular prism(s) found. '];
 txtLoc1 = [20, sz_y - 30];
 txtLoc2 = [20, sz_y - 60];
 txtLoc3 = [20, sz_y - 90];
@@ -434,6 +452,6 @@ img_box1 = insertText(img_box1, txtLoc3, txtTriPrism);
 % imshow(img_box1);
 img = img_box1;
 % viscircles(centers, radii);
-% viscircles(centers2, radii2);
+% viscircles(centers3, radii3);
 % viscircles(domino_c, domino_r);
 end

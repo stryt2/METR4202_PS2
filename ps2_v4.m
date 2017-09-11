@@ -1,3 +1,5 @@
+close all;
+
 level = '1. Basic Environment';
 folder ='D:\Google Drive\UQ\Year 3\Semester 2\METR4202\ProblemSet2\';
 if ~isdir(folder)
