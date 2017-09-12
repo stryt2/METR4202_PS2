@@ -19,11 +19,11 @@ figure(figNum);
 figNum = figNum + 1;
 img_adjust = img_color;
 for times = 1:1
-%     img_contrast = imgaussfilt(img_contrast);
+    img_adjust = imgaussfilt(img_adjust);
 %     img_adjust = medfilt3(img_adjust);
 end
-% img_contrast = imadjust(img_color, [0.005 1], [0 1]);
-%img_contrast = imsharpen(img_contrast);
+img_adjust = imadjust(img_color, [0.005 1], [0 1]);
+img_adjust = imsharpen(img_adjust);
 imshow(img_adjust);
 title('contrast')
 

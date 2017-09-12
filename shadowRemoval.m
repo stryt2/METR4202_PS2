@@ -1,6 +1,6 @@
 function img_noShadow = shadowRemoval(img_color, theta)
     J = im2double(img_color);
-    R = J(:,:,1);
+    R = J(:,:,2);
     G = J(:,:,2);
     B = J(:,:,3);
 
