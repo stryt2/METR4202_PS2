@@ -19,7 +19,7 @@ end
 
 %% Read Colourful Image
 img_color = imread(filename);
-% img_color = imread('wood10.bmp');
+% img_color = imread('wood09.bmp');
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_color);
@@ -250,28 +250,30 @@ radii = vertcat(radii1, radii2);
 % end
 
 [B,L] = bwboundaries(img_propfilt2, 'noholes');
-sz = size(B);
-xMax = zeros([1 sz(1,1)]);
+% sz = size(B);
+% xMax = zeros([1 sz(1,1)]);
+
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(label2rgb(L, @jet, [.5 .5 .5]));
-% 
 % hold on
 
 areaThrsh = [2750 3000];
-    triArea = [12000 14600];
-    major2minorThrsh = 2.1;
-    major2minorCube = 1.3;
+%     triArea = [12000 14600];
+triArea = [12000 18000];
+triAreaTolerance = 100;
+major2minorThrsh = 2.1;
+major2minorCube = 1.3;
 
 for k = 1:height(stats1)
     identified = 0;
     img_zoomIn = img_edged;
     
-    boundary = B{k};
+%     boundary = B{k};
 %     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2);
 
-    major2minor = stats1.MajorAxisLength(k) / stats1.MinorAxisLength(k);
-%     major2minor(2) = stats2.MajorAxisLength(k) / stats2.MinorAxisLength(k);
+%     major2minor = stats1.MajorAxisLength(k) / stats1.MinorAxisLength(k)
+    major2minor = stats2.MajorAxisLength(k) / stats2.MinorAxisLength(k);
     
     % Bounding Box
     boundingBox(1:2) = stats1.BoundingBox(k,1:2) + dilWidth(1) / 2;
@@ -306,8 +308,15 @@ for k = 1:height(stats1)
     end
     
     % Detection based on area
+    triAreaThresh = triArea;
+    if (stats2.Centroid(k,2) < 390)
+        triAreaThresh = triAreaThresh - (390 - stats2.Centroid(k,2)) * 19;
+    else
+        triAreaThresh = triAreaThresh + (stats2.Centroid(k,2) - 390) * 12;
+    end
+    triAreaThresh = triAreaThresh - triAreaTolerance;
     if (~identified)
-        if (stats2.Area(k) > triArea(2))
+        if (stats2.Area(k) > triAreaThresh(2))
             numTriPrism = numTriPrism + 1;
             txt = strcat('Tri. Prism', sprintf('%02d',numTriPrism));
 %             txtLoc = [stats.Centroid(k,1) - 32, stats.Centroid(k,2) - 12];
@@ -321,7 +330,7 @@ for k = 1:height(stats1)
     end
     
     if (~identified) 
-        [centers3, radii3] = imfindcircles(img_propfilt1, [30, 50], ...
+        [centers3, radii3] = imfindcircles(img_propfilt1, [30, 60], ...
             'EdgeThreshold', 0.25);
         for n = 1:size(centers3,1)
             dx = abs(stats1.Centroid(k,1) - centers3(n,1));
@@ -450,7 +459,9 @@ img_box1 = insertText(img_box1, txtLoc3, txtTriPrism);
 % figure(figNum);
 % figNum = figNum + 1;
 % imshow(img_box1);
+
 img = img_box1;
+
 % viscircles(centers, radii);
 % viscircles(centers3, radii3);
 % viscircles(domino_c, domino_r);
