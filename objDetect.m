@@ -7,7 +7,7 @@ numCylinder = 0;
 numCube = 0;
 numTriPrism = 0;
 figNum = 1;
-nonCollide = 1;
+nonCollide = 0;
 
 %% Calibrate Camera
 % wkspace = evalin('base','whos'); 
@@ -20,7 +20,8 @@ nonCollide = 1;
 
 %% Read Colourful Image
 
-filename = '1. Basic Environment/green07.bmp';
+% filename = '1. Basic Environment/wood03.bmp';
+filename = '2. Skillful Environment/green05.bmp';
 
 if (ischar(filename))
     img_color = imread(filename);
@@ -168,53 +169,6 @@ figNum = figNum + 1;
 imshow(img_bcleared2);
 title('dilated, filled, bcleared');
 
-%% 
-% figure(7);
-% img_area = bwpropfilt(img_bcleared, 3000);
-% imshow(img_area);
-
-%% Obtain Hough Transform
-%close all
-% [H, T, R] = hough(img_edged);
-% 
-% N = 50;
-% P  = houghpeaks(H,15,'threshold',ceil(0.04364*max(H(:))));
-% 
-% lines = houghlines(img_edged,T,R,P,'FillGap',30,'MinLength',20);
-% 
-% figure(figNum);
-% figNum = figNum + 1;
-% subplot(2, 1, 1);
-% imshow(img_edged);
-% hold on;
-% 
-% max_len = 0;
-% for k = 1:length(lines)
-%    xy = [lines(k).point1; lines(k).point2];
-%    plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
-% 
-%    % Plot beginnings and ends of lines
-%    plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
-%    plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
-% 
-%    % Determine the endpoints of the longest line segment
-%    len = norm(lines(k).point1 - lines(k).point2);
-%    if ( len > max_len)
-%       max_len = len;
-%       xy_long = xy;
-%    end
-% end
-% 
-% title('Hough');
-% 
-% subplot(2, 1, 2);
-% imshow(imadjust(mat2gray(H)), 'XData', T, 'YData', R, ...
-%     'InitialMagnification', 'fit');
-% axis on;
-% axis normal;
-% grid on;
-% hold on;
-% colormap('jet');
 
 %% Calibration Matrix
 % cpselect
@@ -236,15 +190,19 @@ title('dilated, filled, bcleared');
 
 
 %% Trace region boundaries in binary image and Put Box Around Shapes
+barWidth = 20;
+
 img_propfilt1 = img_bcleared1;
 img_propfilt2 = img_bcleared2;
 
 img_result = img_color;
 
 stats1 = regionprops('table', img_propfilt1,'Centroid', 'BoundingBox',...
-    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema')
+    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema', 'PixelList')%, ...
+    %'ConvexImage')
 stats2 = regionprops('table', img_propfilt2,'Centroid', 'BoundingBox',...
-    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema')
+    'MajorAxisLength','MinorAxisLength', 'Area', 'Extrema', 'PixelList')%, ...
+    %'ConvexImage')
 
 [centers1, radii1] = imfindcircles(img_propfilt1, [30, 50]);
 [centers2, radii2] = imfindcircles(img_propfilt2, [30, 50], ...
@@ -259,15 +217,7 @@ radii = vertcat(radii1, radii2);
 %     img_box1 = insertText(img_box1, centers(n+1,:), char('a'+n));
 % end
 
-% [B,L] = bwboundaries(img_edged, 'noholes');
-[B,L] = bwboundaries(img_propfilt1, 'noholes');
-% sz = size(B);
-% xMax = zeros([1 sz(1,1)]);
 
-figure(figNum);
-figNum = figNum + 1;
-imshow(label2rgb(L, @jet, [.5 .5 .5]));
-hold on
 
 %     triArea = [12000 14600];
 triAreaBase = [12000 18000];
@@ -277,34 +227,125 @@ major2minorCube = 1.3;
 
 stats = stats2;
 statsNum = 2;
+img_propfilt = img_propfilt2;
 if (height(stats1) > height(stats2))
     stats = stats1;
     statsNum = 1;
+    img_propfilt = img_propfilt1;
 end
 
-leftCoord = zeros(1, 2);
-rightCoord = zeros(1, 2);
+% [B,L] = bwboundaries(img_edged, 'noholes');
+[B,L] = bwboundaries(img_propfilt, 'noholes');
+% sz = size(B);
+% xMax = zeros([1 sz(1,1)]);
 
-for k = 1:height(stats)
-    if (k == 1)
-        leftCoord = stats.Centroid(k,:);
-    elseif (k == height(stats))
-        rightCoord = stats.Centroid(k,:);
-    end
-    
+figure(figNum);
+figNum = figNum + 1;
+imshow(label2rgb(L, @jet, [.5 .5 .5]));
+hold on
+
+startCoord = [sz_x 0];
+endCoord = zeros(1, 2);
+startEndObjNum = zeros(1, 2);
+
+stats_major2minor = stats.MajorAxisLength ./ stats.MinorAxisLength;
+
+for k = 3:3%height(stats)
+    fprintf('------------------------------------------------------\n');
+    k
     identified = 0;
+    classficaiton = 0;      % 0: Unidentified, 1: Cylinder, 2: Tri. Prism
+                            % 3: Cube
     img_zoomIn = img_edged;
+    img_zoomIn_gray = img_gray;
     
     boundary = B{k};
     plot(boundary(:,2), boundary(:,1), 'w', 'LineWidth', 2);
 
 %     major2minor = stats1.MajorAxisLength(k) / stats1.MinorAxisLength(k)
-    major2minor = stats.MajorAxisLength(k) / stats.MinorAxisLength(k);
+    major2minor = stats_major2minor(k);
     
     % Bounding Box
     boundingBox(1:2) = stats.BoundingBox(k,1:2) + dilWidth(statsNum) / 2;
     boundingBox(3:4) = stats.BoundingBox(k,3:4) - dilWidth(statsNum);
     extrema = stats.Extrema{k};
+    
+    % Mask by Bounding Box
+    x = [boundingBox(1), boundingBox(1), ...
+        boundingBox(1) + boundingBox(3), boundingBox(1) + boundingBox(3)];
+    y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
+        boundingBox(2) + boundingBox(4), boundingBox(2),];
+    img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
+    figure(figNum);
+    figNum = figNum + 1;
+    imshow(img_zoomIn);
+    title('zoomed');
+    
+    [H, T, R] = hough(img_zoomIn);
+
+    N = 50;
+    P  = houghpeaks(H,9,'threshold',ceil(0.048*max(H(:))));
+
+    lines = houghlines(img_zoomIn,T,R,P,'FillGap',30,'MinLength',20);
+
+
+%     figure(figNum);
+%     figNum = figNum + 1;
+    imshow(img_zoomIn);
+    hold on;
+    
+    lens = zeros(length(lines), 1);
+    max_len = 0;
+    
+    angles = zeros(length(lines), length(lines));
+    
+    for line = 1:length(lines)
+        xy = [lines(line).point1; lines(line).point2];
+        plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+
+        % Plot beginnings and ends of lines
+        plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+        plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+
+        % Determine the endpoints of the longest line segment
+        len = norm(lines(line).point1 - lines(line).point2);
+        lens(line) = len;
+        if ( len > max_len)
+            lineNum = line;
+            max_len = len;
+            xy_long = xy;
+        end
+        v1 = lines(line).point2 - lines(line).point1;
+        for other = 1:length(lines)
+            v2 = lines(other).point2 - lines(other).point1;
+            angles(line, other) = round(rad2deg(acos(dot(v1, v2) / ...
+                norm(v1) / norm(v2))));
+        end
+    end
+    cylinderAngThrsh = 20;
+    cylinderMeanAng = 0;
+    meanDiffThrsh = 8;
+    cubeAngThrsh = 80;
+    cubeMeanAng = 45;
+
+    maxAngle = max(max(angles))
+    meanAngle = mean(mean(angles))
+    if (maxAngle < cylinderAngThrsh && ...
+            abs(meanAngle - cylinderMeanAng) < meanDiffThrsh)
+        fprintf('cylinder\n');
+        classification = 1;
+    elseif (maxAngle > cubeAngThrsh && ...
+            abs(meanAngle - cubeMeanAng) < meanDiffThrsh)
+        fprintf('cube\n');
+        classification = 3;
+%     elseif 
+%         
+    end
+    hold off
+    
+    
+    
+    
     if (stats.Area(k) > areaLowThrsh(statsNum) && ...
             major2minor < major2minorThrsh && ...
             stats.Area(k) < areaHighThrsh(statsNum))
@@ -313,7 +354,15 @@ for k = 1:height(stats)
 %         img_result = insertText(img_result, stats.Centroid(k,:), ...
 %             num2str(k));
     else
-        continue;
+%         continue;
+    end
+    
+    if (stats.Centroid(k,1) < startCoord(1))
+        startCoord = stats.Centroid(k,:);
+        startEndObjNum(1) = k;
+    elseif (stats.Centroid(k,1) > endCoord(1))
+        endCoord = stats.Centroid(k,:);
+        startEndObjNum(2) = k;
     end
     
     % Cylinder Detection
@@ -401,54 +450,7 @@ for k = 1:height(stats)
 %     end
     
     
-%     % Mask by Bounding Box
-%     x = [boundingBox(1), boundingBox(1), ...
-%         boundingBox(1) + boundingBox(3), boundingBox(1) + boundingBox(3)];
-%     y = [boundingBox(2), boundingBox(2) + boundingBox(4), ...
-%         boundingBox(2) + boundingBox(4), boundingBox(2),];
-%     img_zoomIn = img_zoomIn .* poly2mask(x, y, sz_y, sz_x);
-%     img_zoomIn = imresize(img_zoomIn, 3);
-%     [domino_c, domino_r] = imfindcircles(img_zoomIn, [20, 30], ...
-%         'Sensitivity', 0.1);
-%     figure(figNum);
-%     figNum = figNum + 1;
-%     imshow(img_zoomIn);
-%     viscircles(domino_c, domino_r);
-%     title('zoomed');
-%     
-%     [H, T, R] = hough(img_zoomIn);
-% 
-%     N = 50;
-%     P  = houghpeaks(H,9,'threshold',ceil(0.04364*max(H(:))));
-% 
-%     lines = houghlines(img_zoomIn,T,R,P,'FillGap',30,'MinLength',20);
-% 
-% 
-%     figure(figNum);
-%     figNum = figNum + 1;
-%     imshow(img_zoomIn);
-%     hold on;
-%     
-%     lens = zeros(length(lines), 1);
-%     max_len = 0;
-%     for line = 1:length(lines)
-%         xy = [lines(line).point1; lines(line).point2];
-%         plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
-% 
-%         % Plot beginnings and ends of lines
-%         plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
-%         plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
-% 
-%         % Determine the endpoints of the longest line segment
-%         len = norm(lines(line).point1 - lines(line).point2);
-%         lens(line) = len;
-%         if ( len > max_len)
-%             lineNum = line;
-%             max_len = len;
-%             xy_long = xy;
-%         end
-%     end
-%     hold off
+
 %     
 % %     for cnt = 1:max(max(H))
 % %         data(cnt) = sum(sum(H == cnt));
@@ -485,56 +487,128 @@ img_result = insertText(img_result, txtLoc3, txtTriPrism);
 
 %% Non-Colliding Path
 if (nonCollide)
-    img_result = insertText(img_result, leftCoord, 'X', ...
-        'TextColor', 'black', 'BoxOpacity', 0);
-    img_result = insertText(img_result, rightCoord, 'O', ...
-        'TextColor', 'black', 'BoxOpacity', 0);
+    startObjSpace = cell2mat(stats.PixelList(startEndObjNum(1):startEndObjNum(1), 1:1));
+    otherObjSpace = cell2mat(stats.PixelList(startEndObjNum(1)+1:startEndObjNum(2)-1, 1:1));
+    endObjSpace = cell2mat(stats.PixelList(startEndObjNum(2):startEndObjNum(2), 1:1));
+    fprintf('drawing X\n');
+    pos = round(startCoord)
+    img_result = insertShape(img_result, 'FilledCircle', ...
+        [round(startCoord) 10], 'Color', 'black', 'Opacity', 1);
+    fprintf('drawing O\n');
+    round(endCoord)
+    img_result = insertShape(img_result, 'FilledCircle', ...
+        [round(endCoord) 10], 'Color', 'black', 'Opacity', 1);
     
-    currentCoord = round(leftCoord);
-    startObj = 1;
-    endObj = 0;
+    currentCoord = round(startCoord)
+    path = currentCoord;
     reached = 0;
-    step = 1;
+    step = 10;
     moved = 0;
+    direction = 0;      % 0: moved normally; 1: up (neg); 2: down (pos)
     while (~reached)
-%         if (step ~= 1 && norm([rightCoord(1) - currentCoord(1), ...
-%                 rightCoord(2) - currentCoord(2)]) < 50)
-%             step = 1;
-%         else
-%             step = 10;
-%         end
-        slope = (rightCoord(2) - currentCoord(2)) / ...
-            (rightCoord(1) - currentCoord(1));
-        next = [round(currentCoord(1) + step) ...
-            round(currentCoord(2) + step * slope)];
-        moved = 1;
-        nextPixel = impixel(img_propfilt2, currentCoord(1), ...
-            currentCoord(2))
-        dest = bitor(startObj, endObj)
-        if (impixel(img_propfilt2, next(1), next(2)) == dest)
-            currentCoord = next;
-            1
-        elseif (impixel(img_propfilt2, next(1), currentCoord(2)) == dest)
-            currentCoord = [next(1) currentCoord(2)];
-            2
-        elseif (impixel(img_propfilt2,currentCoord(1), next(2)) == dest)
-            currentCoord = [currentCoord(1), next(2)];
-            3
+        fprintf('----------------------------------------------\n');
+        if (norm([endCoord(1) - currentCoord(1), ...
+                endCoord(2) - currentCoord(2)]) < step + 10)
+            reached = 1;
+            break;
+        end
+        slope = (endCoord(2) - currentCoord(2)) / ...
+            (endCoord(1) - currentCoord(1))
+        %%%%%%start from here%%%%%%%
+        nextX = ceil(currentCoord(1) + step);
+        nextY = ceil(currentCoord(2) + step * slope);
+        direction
+        next
+        if (direction == 0 && nextX <= endCoord(1))
+            next = [ceil(currentCoord(1) + step) ...
+                ceil(currentCoord(2) + step * slope)];
+        elseif (direction == 1)
+            nextStep = -step * 3;
+            fprintf('a\n')
+            if (ismember(currentCoord(1), path(:,1)) && ...
+                    ismember(currentCoord(2) + nextStep, path(:,2)))
+                fprintf('b\n')
+                nextStep = step * 3;
+            end
+            next = [currentCoord(1) currentCoord(2) + nextStep];
         else
+            nextStep = step;
+            fprintf('c\n')
+            if (ismember(currentCoord(1), path(:,1)) && ...
+                    ismember(currentCoord(2) + nextStep, path(:,2)))
+                fprintf('d\n')
+                nextStep = -step;
+            end
+            next = [currentCoord(1) currentCoord(2) + nextStep];
+        end
+                
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         moved = 0;
+%         nextPixel = impixel(img_propfilt2, next(1), next(2))
+        [isStartObj, startIdx] = ismember(next, startObjSpace);
+        [isOtherObj, otherIdx] = ismember(next, otherObjSpace);
+        [isEndObj, endIdx] = ismember(next, endObjSpace);
+        
+%         if (isStartObj || isEndObj)
+        idx1 = otherIdx(1) + size(otherObjSpace,1);
+        idx2 = idx1 + size(otherObjSpace(otherObjSpace == next(1)),1);
+        
+        if (isOtherObj(1) && isOtherObj(2) && ...
+                otherIdx(1) < size(otherObjSpace,1) / 2 && ...
+                next(1) == otherObjSpace(otherIdx(1)) && ...
+                ismember(next(2), otherObjSpace(idx1:idx2)))
+            fprintf('next is otherObj\n');
+            if (slope < 0 && moved) || (slope > 0 && ~moved) 
+                fprintf('changing dir to 1: up\n');
+                direction = 1;
+            elseif (slope < 0 && ~moved) || (slope > 0 && moved)
+                fprintf('changing dir to 2: down\n');
+                direction = 2;
+            end
             moved = 0;
-            4
-%             step = 1;
+        else
+            fprintf('next is not otherObj\n');
+            currentCoord = next;
+            path = vertcat(path, currentCoord);
+            direction = 0;
+            moved = 1;
+            fprintf('Drawing Path\n');
+            currentCoord
+%             img_result = insertText(img_result, currentCoord, '.', ...
+%                 'FontSize', 30, 'TextColor', 'black', 'BoxOpacity', 0);
+            img_result = insertShape(img_result, 'FilledCircle', ...
+                [currentCoord 2], 'Color', 'black', 'Opacity', 1);
         end
-        currentPixel = impixel(img_propfilt2, currentCoord(1), ...
-            currentCoord(2));
-        if (startObj && currentPixel(1) == 0)
-            startObj = 0;
-        end
-        if (~endObj && currentPixel(1) == 1)
-            endObj = 1;
-        end
-        img_result = insertText(img_result, currentCoord, '.', ...
-            'FontSize', 30, 'TextColor', 'black', 'BoxOpacity', 0);
+        moved
+
+%         dest = bitor(isStartObj, isEndObj)
+%         if (impixel(img_propfilt2, next(1), next(2)) == dest)
+%             currentCoord = next;
+%             ifstate = 1
+%         elseif (impixel(img_propfilt2, next(1), currentCoord(2)) == dest)
+%             currentCoord = [next(1) currentCoord(2)];
+%             ifstate = 2
+%         elseif (impixel(img_propfilt2,currentCoord(1), next(2)) == dest)
+%             currentCoord = [currentCoord(1), next(2)];
+%             ifstate = 3
+%         else
+%             moved = 0;
+%             ifstate = 4
+% %             step = 1;
+%         end
+%         currentCoord
+%         currentPixel = impixel(img_propfilt2, currentCoord(1), ...
+%             currentCoord(2));
+%         if (startObj && currentPixel(1) == 0)
+%             fprintf('left startObj\n');
+%             startObj = 0;
+%         end
+%         if (~startObj && currentPixel(1) == 1)
+%             fprintf('entered endObj\n');
+%             endObj = 1;
+%         end
+        
+        
     end
     
 end
